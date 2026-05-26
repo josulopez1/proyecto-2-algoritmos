@@ -1,10 +1,7 @@
 CALL gds.graph.project(
-  'jugadoresGraph',
-  ['Jugador', 'Equipo', 'Atributo'],
-  {
-    JUEGA_EN: {},
-    DESTACA_EN: {}
-  }
+    'jugadoresGraph',
+    ['Jugador', 'Equipo', 'Atributo'],
+    ['JUEGA_EN', 'DESTACA_EN']
 );
 
 CALL gds.pageRank.stream('jugadoresGraph')
