@@ -2,7 +2,7 @@ from neo4j import GraphDatabase
 
 URI = "bolt://localhost:7687"
 USUARIO = "neo4j"
-PASSWORD = "password"  # cambia por la tuya
+PASSWORD = "12345678"  # cambia por la tuya
 
 
 class Neo4jManager:
