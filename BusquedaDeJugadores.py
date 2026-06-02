@@ -1,240 +1,319 @@
-import customtkinter as ctk
+import csv
+import os
 from tkinter import messagebox
+import customtkinter as ctk
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import MinMaxScaler
 
 # =====================================================================
-# DATASET SIMULADO
+# CLASE MODELO DE JUGADOR
 # =====================================================================
 
-JUGADORES_DB = [
-    {
-        "nombre": "Lamine Yamal",
-        "liga": "LaLiga",
-        "posicion": "Extremo",
-        "caracteristicas": {"Zurdo", "Regateador", "Joven", "Veloz"},
-        "stats": [92, 78, 85, 30],
-        "pagerank": 0.85
-    },
-    {
-        "nombre": "Jamal Musiala",
-        "liga": "Bundesliga",
-        "posicion": "MCO",
-        "caracteristicas": {"Diestro", "Regateador", "Agil", "Joven"},
-        "stats": [88, 82, 88, 40],
-        "pagerank": 0.88
-    },
-    {
-        "nombre": "Bukayo Saka",
-        "liga": "Premier League",
-        "posicion": "Extremo",
-        "caracteristicas": {"Zurdo", "Regateador", "Consistente", "Veloz"},
-        "stats": [89, 84, 82, 55],
-        "pagerank": 0.82
-    },
-    {
-        "nombre": "Florian Wirtz",
-        "liga": "Bundesliga",
-        "posicion": "MCO",
-        "caracteristicas": {"Diestro", "Visión", "Agil", "Joven"},
-        "stats": [82, 80, 90, 45],
-        "pagerank": 0.86
-    },
-    {
-        "nombre": "Cole Palmer",
-        "liga": "Premier League",
-        "posicion": "MCO",
-        "caracteristicas": {"Zurdo", "Visión", "Goleador", "Joven"},
-        "stats": [80, 85, 84, 38],
-        "pagerank": 0.80
-    }
-]
+
+class Jugador:
+
+    def __init__(self, nombre, liga, posicion, caracteristicas, stats, pagerank):
+        self.nombre = nombre
+        self.liga = liga
+        self.posicion = posicion
+        # Se guarda como conjunto para el coeficiente de Jaccard
+        self.caracteristicas = set(caracteristicas)
+        # Lista de enteros/flotantes para similitud de coseno
+        self.stats = stats
+        self.pagerank = float(pagerank)
+
+    def obtener_vector(self):
+        return self.stats
+
 
 # =====================================================================
-# ALGORITMO JACCARD
+# LECTOR NATIVO DE BASE DE DATOS (CSV REAL)
 # =====================================================================
+
+
+def cargar_jugadores_desde_csv():
+    """
+    Busca el CSV descargado en la subcarpeta datafile y mapea los objetos.
+    """
+    ruta_csv = os.path.join("datafile", "dataplayers.csv")
+    jugadores_lista = []
+
+    if not os.path.exists(ruta_csv):
+        # Fallback por si ejecutas directamente desde la raíz sin subcarpeta
+        ruta_csv = "dataplayers.csv"
+        if not os.path.exists(ruta_csv):
+            return []
+
+    try:
+        with open(ruta_csv, mode="r", encoding="utf-8") as archivo:
+            lector = csv.DictReader(archivo)
+            for fila in lector:
+                # Parsear características separadas por comas en el CSV
+                caract = [c.strip() for c in fila["caracteristicas"].split(",")]
+
+                # Extraer stats numéricas del CSV (ej: ritmo, tiro, pase, defensa)
+                stats = [
+                    float(fila["stat1"]),
+                    float(fila["stat2"]),
+                    float(fila["stat3"]),
+                    float(fila["stat4"]),
+                ]
+
+                j = Jugador(
+                    nombre=fila["nombre"],
+                    liga=fila["liga"],
+                    posicion=fila["posicion"],
+                    caracteristicas=caract,
+                    stats=stats,
+                    pagerank=fila.get("pagerank", 0.0),
+                )
+                jugadores_lista.append(j)
+    except Exception as e:
+        print(f"Error leyendo el dataset: {e}")
+
+    return jugadores_lista
+
+
+# Carga global de los 541 jugadores del CSV real
+JUGADORES_DB = cargar_jugadores_desde_csv()
+
+# =====================================================================
+# ALGORITMO 1: COEFICIENTE DE JACCARD
+# =====================================================================
+
 
 def coef_jaccard(conjunto_A, conjunto_B):
-    """
-    Calcula la similitud de Jaccard entre dos conjuntos.
-    """
-
     interseccion = len(conjunto_A.intersection(conjunto_B))
     union = len(conjunto_A.union(conjunto_B))
-
-    if union == 0:
-        return 0.0
-
-    return interseccion / union
+    return interseccion / union if union != 0 else 0.0
 
 
 def buscar_por_jaccard(jugador_objetivo_nombre):
-    """
-    Busca jugadores similares usando Jaccard.
-    """
-
     jugador_obj = next(
         (
-            j for j in JUGADORES_DB
-            if j["nombre"].lower() == jugador_objetivo_nombre.lower()
+            j
+            for j in JUGADORES_DB
+            if j.nombre.lower() == jugador_objetivo_nombre.lower()
         ),
-        None
+        None,
     )
-
     if not jugador_obj:
         return []
 
     resultados = []
-
     for jugador in JUGADORES_DB:
-
-        # Evitar comparar consigo mismo
-        if jugador["nombre"].lower() != jugador_obj["nombre"].lower():
-
+        if jugador.nombre.lower() != jugador_obj.nombre.lower():
             similitud = coef_jaccard(
-                jugador_obj["caracteristicas"],
-                jugador["caracteristicas"]
+                jugador_obj.caracteristicas, jugador.caracteristicas
             )
+            resultados.append({"jugador": jugador, "similitud": similitud})
 
-            resultados.append({
-                "nombre": jugador["nombre"],
-                "liga": jugador["liga"],
-                "posicion": jugador["posicion"],
-                "similitud": similitud
-            })
-
-    # Ordenar de mayor a menor
     resultados.sort(key=lambda x: x["similitud"], reverse=True)
-
     return resultados
 
 
 # =====================================================================
-# STUBS FUTUROS
+# ALGORITMO 2: SIMILITUD DE COSENO (AÑADIDO)
 # =====================================================================
 
-def calcular_coseno_knn():
+
+class SimilitudCoseno:
+
+    def __init__(self, jugadores):
+        self.jugadores = jugadores
+        if not self.jugadores:
+            self.matriz_normalizada = np.array([])
+            return
+
+        matriz = np.array([jugador.obtener_vector() for jugador in self.jugadores])
+        scaler = MinMaxScaler()
+        self.matriz_normalizada = scaler.fit_transform(matriz)
+
+    def encontrar_similares(self, nombre_jugador, top_n=5):
+        indice_objetivo = None
+        for i, jugador in enumerate(self.jugadores):
+            if jugador.nombre.lower() == nombre_jugador.lower():
+                indice_objetivo = i
+                break
+
+        if indice_objetivo is None:
+            raise ValueError("Jugador no encontrado")
+
+        vector_objetivo = self.matriz_normalizada[indice_objetivo]
+        similitudes = cosine_similarity(
+            [vector_objetivo], self.matriz_normalizada
+        )[0]
+
+        resultados = []
+        for i, score in enumerate(similitudes):
+            if i != indice_objetivo:
+                resultados.append(
+                    {"jugador": self.jugadores[i], "similitud": round(score, 4)}
+                )
+
+        resultados.sort(key=lambda x: x["similitud"], reverse=True)
+        return resultados[:top_n]
+
+
+# Inicializar motor de coseno sobre los datos cargados del CSV
+if JUGADORES_DB:
+    motor_coseno = SimilitudCoseno(JUGADORES_DB)
+else:
+    motor_coseno = None
+
+# =====================================================================
+# STUBS FUTUROS: K-NN Y PAGERANK
+# =====================================================================
+
+
+def calcular_knn_agrupacion():
     pass
 
 
-def calcular_pagerank():
+def conectar_neo4j_pagerank():
     pass
 
 
 # =====================================================================
-# INTERFAZ
+# INTERFAZ GRÁFICA EVOLUCIONADA
 # =====================================================================
+
 
 class ScoutingApp(ctk.CTk):
 
     def __init__(self):
         super().__init__()
 
-        self.title("⚽ Tactical Graph Scouting")
-        self.geometry("750x550")
+        self.title("⚽ Tactical Graph Scouting - Sistema Híbrido")
+        self.geometry("800://650")
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("green")
 
-        # TÍTULO
+        # ENCABEZADO
         self.title_label = ctk.CTkLabel(
             self,
             text="TACTICAL GRAPH SCOUTING",
-            font=ctk.CTkFont(size=24, weight="bold")
+            font=ctk.CTkFont(size=24, weight="bold"),
         )
-        self.title_label.pack(pady=20)
+        self.title_label.pack(pady=15)
 
-        # FRAME INPUT
+        # SELECCIÓN DE JUGADOR
         self.input_frame = ctk.CTkFrame(self)
-        self.input_frame.pack(pady=10, padx=20, fill="x")
+        self.input_frame.pack(pady=5, padx=20, fill="x")
 
         self.label_instruccion = ctk.CTkLabel(
             self.input_frame,
-            text="Selecciona un jugador:",
-            font=ctk.CTkFont(size=14)
+            text="Selecciona un perfil de jugador base (Dataset Real):",
+            font=ctk.CTkFont(size=13),
         )
         self.label_instruccion.pack(pady=5)
 
-        opciones_jugadores = [j["nombre"] for j in JUGADORES_DB]
+        # Cargar los nombres reales dinámicamente desde el CSV
+        opciones_jugadores = (
+            [j.nombre for j in JUGADORES_DB]
+            if JUGADORES_DB
+            else ["Error cargando CSV"]
+        )
 
         self.combo_jugadores = ctk.CTkComboBox(
-            self.input_frame,
-            values=opciones_jugadores,
-            width=300
+            self.input_frame, values=opciones_jugadores, width=350
         )
+        self.combo_jugadores.pack(pady=8)
 
-        self.combo_jugadores.pack(pady=10)
-
-        # BOTÓN
         self.btn_buscar = ctk.CTkButton(
             self,
-            text="Buscar Similares",
-            command=self.ejecutar_scouting,
-            font=ctk.CTkFont(size=14, weight="bold")
+            text="Ejecutar Análisis Híbrido",
+            command=self.ejecutar_scouting_completo,
+            font=ctk.CTkFont(size=14, weight="bold"),
         )
+        self.btn_buscar.pack(pady=10)
 
-        self.btn_buscar.pack(pady=15)
+        # DISEÑO DE PESTAÑAS (TABVIEW) PARA MOSTRAR AMBOS ENFOQUES
+        self.tab_control = ctk.CTkTabview(self)
+        self.tab_control.pack(pady=10, padx=20, fill="both", expand=True)
 
-        # RESULTADOS
-        self.results_frame = ctk.CTkFrame(self)
-        self.results_frame.pack(pady=10, padx=20, fill="both", expand=True)
+        self.tab_control.add("Atributos (Jaccard)")
+        self.tab_control.add("Rendimiento (Coseno)")
 
-        self.textbox_resultados = ctk.CTkTextbox(
-            self.results_frame,
-            font=ctk.CTkFont(size=13)
+        # TextBox Pestaña Jaccard
+        self.txt_jaccard = ctk.CTkTextbox(
+            self.tab_control.tab("Atributos (Jaccard)"),
+            font=ctk.CTkFont(size=13),
         )
+        self.txt_jaccard.pack(fill="both", expand=True, padx=5, pady=5)
+        self.txt_jaccard.configure(state="disabled")
 
-        self.textbox_resultados.pack(
-            pady=10,
-            padx=10,
-            fill="both",
-            expand=True
+        # TextBox Pestaña Coseno
+        self.txt_coseno = ctk.CTkTextbox(
+            self.tab_control.tab("Rendimiento (Coseno)"),
+            font=ctk.CTkFont(size=13),
         )
+        self.txt_coseno.pack(fill="both", expand=True, padx=5, pady=5)
+        self.txt_coseno.configure(state="disabled")
 
-        self.textbox_resultados.configure(state="disabled")
+    def ejecutar_scouting_completo(self):
+        jugador_sel = self.combo_jugadores.get()
 
-    # =================================================================
-
-    def ejecutar_scouting(self):
-
-        jugador_seleccionado = self.combo_jugadores.get()
-
-        if not jugador_seleccionado:
-            messagebox.showwarning(
-                "Advertencia",
-                "Selecciona un jugador válido."
-            )
+        if not jugador_sel or jugador_sel == "Error cargando CSV":
+            messagebox.showwarning("Advertencia", "Selecciona un jugador real.")
             return
 
-        resultados = buscar_por_jaccard(jugador_seleccionado)
+        # 1. EJECUTAR JACCARD
+        res_jaccard = buscar_por_jaccard(jugador_sel)
+        self.txt_jaccard.configure(state="normal")
+        self.txt_jaccard.delete("1.0", ctk.END)
 
-        self.textbox_resultados.configure(state="normal")
-        self.textbox_resultados.delete("1.0", ctk.END)
+        texto_j = f"🔎 SIMILITUD CUALITATIVA (JACCARD) para: {jugador_sel}\n"
+        texto_j += "=" * 60 + "\n\n"
+        if res_jaccard:
+            for i, item in enumerate(res_jaccard[:5], start=1):
+                jugador = item["jugador"]
+                porcentaje = item["similitud"] * 100
+                texto_j += f"{i}. {jugador.nombre} ({jugador.liga})\n"
+                texto_j += f"   🛡️ Posición: {jugador.posicion} | 🧬 Similitud: {porcentaje:.1f}%\n"
+                texto_j += f"   ✨ Atributos: {jugador.caracteristicas}\n"
+                texto_j += "-" * 50 + "\n"
+        self.txt_jaccard.insert("1.0", texto_j)
+        self.txt_jaccard.configure(state="disabled")
 
-        if resultados:
+        # 2. EJECUTAR COSENO
+        self.txt_coseno.configure(state="normal")
+        self.txt_coseno.delete("1.0", ctk.END)
 
-            texto = f"🔎 Similares a: {jugador_seleccionado}\n"
-            texto += "=" * 50 + "\n\n"
+        texto_c = f"📊 SIMILITUD CUANTITATIVA (COSENO VECTORIAL) para: {jugador_sel}\n"
+        texto_c += "=" * 60 + "\n\n"
 
-            for i, jugador in enumerate(resultados[:3], start=1):
-
-                porcentaje = jugador["similitud"] * 100
-
-                texto += f"{i}. {jugador['nombre']}\n"
-                texto += f"   ⚽ Posición: {jugador['posicion']}\n"
-                texto += f"   🌍 Liga: {jugador['liga']}\n"
-                texto += f"   🧬 Similitud Jaccard: {porcentaje:.1f}%\n"
-                texto += "-" * 40 + "\n"
-
+        if motor_coseno:
+            try:
+                res_coseno = motor_coseno.encontrar_similares(
+                    jugador_sel, top_n=5
+                )
+                for i, item in enumerate(res_coseno, start=1):
+                    jugador = item["jugador"]
+                    porcentaje = item["similitud"] * 100
+                    texto_c += f"{i}. {jugador.nombre} ({jugador.liga})\n"
+                    texto_c += f"   📈 Vector de Stats: {jugador.stats}\n"
+                    texto_c += f"   🎯 Match de Rendimiento: {porcentaje:.1f}%\n"
+                    texto_c += "-" * 50 + "\n"
+            except Exception as e:
+                texto_c += f"Error al procesar matrices: {e}"
         else:
-            texto = "No se encontraron resultados."
+            texto_c += "Motor de Coseno no inicializado."
 
-        self.textbox_resultados.insert("1.0", texto)
-        self.textbox_resultados.configure(state="disabled")
+        self.txt_coseno.insert("1.0", texto_c)
+        self.txt_coseno.configure(state="disabled")
 
 
 # =====================================================================
-# MAIN
+# PUNTO DE ENTRADA PRINCIPAL
 # =====================================================================
 
 if __name__ == "__main__":
+    if not JUGADORES_DB:
+        print(
+            "⚠️ ¡Alerta! No se pudo leer 'datafile/dataplayers.csv'. Revisa la ubicación."
+        )
     app = ScoutingApp()
     app.mainloop()
