@@ -141,35 +141,140 @@ class LectorCSV:
 # =====================================================================
 
 class Neo4jManager:
-    def __init__(self, uri="neo4j://127.0.0.1:7687", usuario="neo4j", password="12345678"):
-        self.driver = GraphDatabase.driver(uri, auth=(usuario, password))
+
+    def __init__(
+            self,
+            uri="neo4j://127.0.0.1:7687",
+            usuario="neo4j",
+            password="12345678"
+    ):
+        self.driver = GraphDatabase.driver(
+            uri,
+            auth=(usuario, password)
+        )
 
     def cerrar(self):
         self.driver.close()
 
     def probar_conexion(self):
+
         try:
+
             with self.driver.session() as session:
-                resultado = session.run("RETURN 'Conectado' AS mensaje")
+
+                resultado = session.run(
+                    "RETURN 'Conectado' AS mensaje"
+                )
+
                 return resultado.single()["mensaje"]
+
         except Exception:
+
             return "Desconectado"
 
     def obtener_pagerank(self):
+
         query = """
         CALL gds.pageRank.stream('jugadoresGraph')
         YIELD nodeId, score
+
         WITH gds.util.asNode(nodeId) AS n, score
+
         WHERE n:Jugador
-        RETURN n.nombre AS jugador, score
+
+        RETURN
+            n.nombre AS jugador,
+            score
+
         ORDER BY score DESC
         """
+
         try:
+
             with self.driver.session() as session:
+
                 resultado = session.run(query)
-                return {row["jugador"]: row["score"] for row in resultado}
+
+                return {
+                    row["jugador"]: row["score"]
+                    for row in resultado
+                }
+
         except Exception:
+
             return {}
+
+    def enriquecer_grafo(self):
+
+        query = """
+
+        MERGE (:Atributo {nombre:'Ritmo'})
+        MERGE (:Atributo {nombre:'Tiro'})
+        MERGE (:Atributo {nombre:'Pase'})
+        MERGE (:Atributo {nombre:'Regate'})
+        MERGE (:Atributo {nombre:'Defensa'})
+        MERGE (:Atributo {nombre:'Fisico'})
+
+        """
+
+        try:
+
+            with self.driver.session() as session:
+
+                session.run(query)
+
+                session.run("""
+                    MATCH (j:Jugador)
+                    WHERE j.ritmo >= 80
+                    MATCH (a:Atributo {nombre:'Ritmo'})
+                    MERGE (j)-[:DESTACA_EN]->(a)
+                """)
+
+                session.run("""
+                    MATCH (j:Jugador)
+                    WHERE j.tiro >= 80
+                    MATCH (a:Atributo {nombre:'Tiro'})
+                    MERGE (j)-[:DESTACA_EN]->(a)
+                """)
+
+                session.run("""
+                    MATCH (j:Jugador)
+                    WHERE j.pase >= 80
+                    MATCH (a:Atributo {nombre:'Pase'})
+                    MERGE (j)-[:DESTACA_EN]->(a)
+                """)
+
+                session.run("""
+                    MATCH (j:Jugador)
+                    WHERE j.regate >= 80
+                    MATCH (a:Atributo {nombre:'Regate'})
+                    MERGE (j)-[:DESTACA_EN]->(a)
+                """)
+
+                session.run("""
+                    MATCH (j:Jugador)
+                    WHERE j.defensa >= 80
+                    MATCH (a:Atributo {nombre:'Defensa'})
+                    MERGE (j)-[:DESTACA_EN]->(a)
+                """)
+
+                session.run("""
+                    MATCH (j:Jugador)
+                    WHERE j.fisico >= 80
+                    MATCH (a:Atributo {nombre:'Fisico'})
+                    MERGE (j)-[:DESTACA_EN]->(a)
+                """)
+
+            print("✅ Grafo enriquecido correctamente.")
+
+            return True
+
+        except Exception as e:
+
+            print("❌ Error enriqueciendo grafo:", e)
+
+            return False
+
 
 # =====================================================================
 # 4. CAPA ALGORÍTMICA HÍBRIDA (COSENO + JACCARD)
@@ -234,7 +339,13 @@ JUGADORES_DB = lector_datos.cargar_jugadores()
 NOMBRES_JUGADORES = [j.nombre for j in JUGADORES_DB] if JUGADORES_DB else []
 
 engine_scouting = EngineRecomendacionHibrida(JUGADORES_DB) if JUGADORES_DB else None
+
 manager_neo4j = Neo4jManager()
+
+try:
+    manager_neo4j.enriquecer_grafo()
+except Exception as e:
+    print("Error al enriquecer Neo4j:", e)
 
 # =====================================================================
 # 5. INTERFAZ GRÁFICA CONTROLADA (CUSTOMTKINTER HÍBRIDO)
