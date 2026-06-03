@@ -7,16 +7,13 @@ from neo4j import GraphDatabase
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
 
-# =====================================================================
 # 1. MODELO DE DATOS RESILIENTE (JUGADOR)
-# =====================================================================
-
 class Jugador:
     def __init__(self, datos):
         # Guardamos el diccionario completo para no perder ninguna columna del CSV original
         self.datos = datos
 
-        # Mapeo idéntico al Lector de tu grupo, soportando ambas nomenclaturas por seguridad
+        # Mapeo idéntico al Lector, soportando ambas nomenclaturas por seguridad
         self.id = datos.get("id")
         self.nombre = datos.get("nombre") if datos.get("nombre") else datos.get("name")
         self.edad = datos.get("edad") if datos.get("edad") else datos.get("age", 0)
@@ -45,13 +42,13 @@ class Jugador:
         self.valor = datos.get("valor") if datos.get("valor") else datos.get("precio_aproximado", 0)
         self.salario = datos.get("salario", 0)
 
-        # --- LÓGICA DE JACCARD (Conjuntos Cualitativos Dinámicos) ---
+        # LÓGICA DE JACCARD (Conjuntos Cualitativos Dinámicos)
         self.caracteristicas = set()
         if int(self.ritmo) >= 80: self.caracteristicas.add("Veloz")
         if int(self.regate) >= 80: self.caracteristicas.add("Regateador")
         if int(self.tiro) >= 80: self.caracteristicas.add("Goleador")
         if int(self.pase) >= 80: self.caracteristicas.add("Visión")
-        if int(self.edad) <= 22 and int(self.edad) > 0: self.caracteristicas.add("Joven")
+        if int(self.edad) <= 25 and int(self.edad) > 0: self.caracteristicas.add("Joven")
         if int(self.defensa) >= 80: self.caracteristicas.add("Muralla")
         
         if not self.caracteristicas:
@@ -71,9 +68,7 @@ class Jugador:
     def __str__(self):
         return f"{self.nombre} ({self.overall})"
 
-# =====================================================================
 # 2. PROCESAMIENTO Y CARGA DE ARCHIVOS (LECTOR CSV)
-# =====================================================================
 
 class LectorCSV:
     def __init__(self, ruta_csv):
@@ -92,7 +87,7 @@ class LectorCSV:
                     self.ruta_csv = ruta
                     break
             else:
-                print(f"❌ Error Crítico: No se encontró el archivo CSV en ninguna ruta estandarizada.")
+                print(f"Error Crítico: No se encontró el archivo CSV en ninguna ruta estandarizada.")
                 return []
 
         try:
@@ -133,12 +128,10 @@ class LectorCSV:
                 jugadores.append(Jugador(data))
             return jugadores
         except Exception as e:
-            print(f"❌ Error al parsear el archivo CSV con Pandas: {e}")
+            print(f"Error al parsear el archivo CSV con Pandas: {e}")
             return []
 
-# =====================================================================
 # 3. INTEGRACIÓN CON BASE DE DATOS DE GRAFOS (NEO4J)
-# =====================================================================
 
 class Neo4jManager:
 
@@ -265,20 +258,18 @@ class Neo4jManager:
                     MERGE (j)-[:DESTACA_EN]->(a)
                 """)
 
-            print("✅ Grafo enriquecido correctamente.")
+            print("Grafo enriquecido correctamente.")
 
             return True
 
         except Exception as e:
 
-            print("❌ Error enriqueciendo grafo:", e)
+            print("Error enriqueciendo grafo:", e)
 
             return False
 
 
-# =====================================================================
 # 4. CAPA ALGORÍTMICA HÍBRIDA (COSENO + JACCARD)
-# =====================================================================
 
 def coef_jaccard(conjunto_A, conjunto_B):
     interseccion = len(conjunto_A.intersection(conjunto_B))
@@ -330,9 +321,7 @@ class EngineRecomendacionHibrida:
         resultados_hibridos.sort(key=lambda x: x["score_hibrido"], reverse=True)
         return resultados_hibridos[:top_n]
 
-# =====================================================================
 # PIPELINES DE INICIALIZACIÓN GLOBAL
-# =====================================================================
 
 lector_datos = LectorCSV(os.path.join("datafile", "dataplayers.csv"))
 JUGADORES_DB = lector_datos.cargar_jugadores()
@@ -347,15 +336,13 @@ try:
 except Exception as e:
     print("Error al enriquecer Neo4j:", e)
 
-# =====================================================================
 # 5. INTERFAZ GRÁFICA CONTROLADA (CUSTOMTKINTER HÍBRIDO)
-# =====================================================================
 
 class ScoutingApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("⚽ Tactical Graph Scouting - Sistema Híbrido Unificado")
+        self.title("Tactical Graph Scouting - Sistema Híbrido Unificado")
         self.geometry("850x720")
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("green")
@@ -424,7 +411,7 @@ class ScoutingApp(ctk.CTk):
         self.txt_resultados.insert("1.0", "Escribe el nombre de un jugador arriba, selecciónalo en la lista desplegable y presiona el botón para calcular las recomendaciones híbridas.")
         self.txt_resultados.configure(state="disabled")
 
-    # --- CONTROLADOR EN TIEMPO REAL DEL AUTOCOMPLETADO ---
+    # CONTROLADOR EN TIEMPO REAL DEL AUTOCOMPLETADO
     def filtrar_nombres_dinamico(self, event):
         texto_ingresado = self.entry_busqueda.get().strip().lower()
         
@@ -445,7 +432,7 @@ class ScoutingApp(ctk.CTk):
             self.entry_busqueda.delete(0, ctk.END)
             self.entry_busqueda.insert(0, seleccion)
 
-    # --- INTERFACES LOGÍCO-MATEMÁTICAS ---
+    # INTERFACES LOGÍCO-MATEMÁTICAS 
     def ejecutar_analisis_hibrido(self):
         # Leemos directo de la variable de control para evitar fallos de refresco de CustomTkinter
         jugador_sel = self.seleccion_actual_var.get().strip()
@@ -472,9 +459,7 @@ class ScoutingApp(ctk.CTk):
         jugador_origen = next(j for j in JUGADORES_DB if j.nombre == jugador_match_oficial)
 
         # CONSTRUCCIÓN VISUAL DEL INFORME TÉCNICO EN EL COMPONENTE TEXTBOX
-        reporte = f"===========================================================================\n"
-        reporte += f"             INFORME TÉCNICO DE RECLUTAMIENTO - MÉTODO HÍBRIDO             \n"
-        reporte += f"===========================================================================\n\n"
+        reporte = f"             INFORME TÉCNICO DE RECLUTAMIENTO - MÉTODO HÍBRIDO             \n"
         reporte += f" JUGADOR BASE ANALIZADO:\n"
         reporte += f" 👤 Nombre:    {jugador_origen.nombre}\n"
         reporte += f" 🏢 Club/Liga: {jugador_origen.equipo} ({jugador_origen.liga})\n"
@@ -482,7 +467,7 @@ class ScoutingApp(ctk.CTk):
         reporte += f" 🧬 Rasgos Cualitativos: {list(jugador_origen.caracteristicas)}\n"
         reporte += f" 📊 Stats Base [Rit, Tir, Pas, Reg, Def, Fis]: {jugador_origen.obtener_vector()}\n"
         reporte += f"\n" + "="*75 + "\n"
-        reporte += f" 🚀 TOP 5 ALTERNATIVAS SUGERIDAS (60% Rendimiento Técnico + 40% Rasgos):\n"
+        reporte += f" TOP 5 ALTERNATIVAS SUGERIDAS (60% Rendimiento Técnico + 40% Rasgos):\n"
         reporte += f"===========================================================================\n\n"
 
         if engine_scouting:
@@ -500,16 +485,16 @@ class ScoutingApp(ctk.CTk):
                     score_page_rank = diccionario_pagerank.get(j.nombre, 0.1500)
 
                     reporte += f" {i}. {j.nombre} ({j.equipo} - {j.liga})\n"
-                    reporte += f"    🔥 MATCH GLOBAL COMPUESTO: {match_global:.2f}%\n"
-                    reporte += f"       ↳ Similitud de Rendimiento (Coseno): {match_coseno:.1f}%\n"
-                    reporte += f"       ↳ Similitud Cualitativa (Jaccard):   {match_jaccard:.1f}%\n"
-                    reporte += f"    ✨ Etiquetas de Perfil: {list(j.caracteristicas)}\n"
-                    reporte += f"    👑 Centralidad en Red de Fichajes (PageRank Score): {score_page_rank:.4f}\n"
+                    reporte += f"    MATCH GLOBAL COMPUESTO: {match_global:.2f}%\n"
+                    reporte += f"     ↳ Similitud de Rendimiento: {match_coseno:.1f}%\n"
+                    reporte += f"     ↳ Similitud Cualitativa:   {match_jaccard:.1f}%\n"
+                    reporte += f"    Etiquetas de Perfil: {list(j.caracteristicas)}\n"
+                    reporte += f"    Centralidad en Red de Fichajes (PageRank Score): {score_page_rank:.4f}\n"
                     reporte += f"    -----------------------------------------------------------------------\n"
             except Exception as e:
-                reporte += f"❌ Error durante el cálculo algorítmico: {e}\n"
+                reporte += f"Error durante el cálculo algorítmico: {e}\n"
         else:
-            reporte += "⚠️ El motor matemático híbrido no pudo inicializarse correctamente por falta de datos.\n"
+            reporte += "El motor matemático híbrido no pudo inicializarse correctamente por falta de datos.\n"
 
         self.txt_resultados.insert("1.0", reporte)
         self.txt_resultados.configure(state="disabled")
