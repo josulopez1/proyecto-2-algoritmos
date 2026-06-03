@@ -439,7 +439,26 @@ class ScoutingApp(ctk.CTk):
                 
                 for i, item in enumerate(recomendaciones, start=1):
                     j = item["jugador"]
-                    match_global = item["score_hibrido"] * 100
+
+                    score_page_rank = diccionario_pagerank.get(
+                        j.nombre,
+                        0.1500
+                    )
+
+                    pagerank_normalizado = min(
+                        score_page_rank / 0.30,
+                        1
+                    )
+
+                    score_final = (
+                            0.6 * item["similitud_rendimiento"]
+                            +
+                            0.3 * item["similitud_atributos"]
+                            +
+                            0.1 * pagerank_normalizado
+                    )
+
+                    match_global = score_final * 100
                     match_coseno = item["similitud_rendimiento"] * 100
                     match_jaccard = item["similitud_atributos"] * 100
                     
